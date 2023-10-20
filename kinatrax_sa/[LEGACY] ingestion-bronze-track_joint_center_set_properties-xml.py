@@ -125,7 +125,7 @@ df_bronze.display()
 
 # COMMAND ----------
 
-clear_all_data = False
+clear_all_data = True
 
 if clear_all_data:
   #spark.sql(f"""DROP DATABASE IF EXISTS {CATALOG}.{DATABASE_B} CASCADE""")

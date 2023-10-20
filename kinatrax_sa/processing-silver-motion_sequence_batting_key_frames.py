@@ -111,7 +111,7 @@ df_motion_ordered = (
 
 # COMMAND ----------
 
-df_motion_ordered.display()
+#df_motion_ordered.display()
 
 # COMMAND ----------
 
@@ -128,7 +128,7 @@ joined_df = (
 
 # COMMAND ----------
 
-joined_df.display()
+#joined_df.display()
 
 # COMMAND ----------
 
@@ -137,3 +137,36 @@ joined_df.display()
 # MAGIC The above code works with a batch DataFrame but fails with a stream since the window() operator only allows for windowing over a timestamp column.
 # MAGIC
 # MAGIC  - Hence we now join on timestamp rounded field so that we don't need to apply row_number function with a window on event_name on the motion_sequence_batting table
+# MAGIC  - This resolves the above issue. The stream-batch join ensures that this can work in a stream-batch as well as continuous streaming fashion as long as the bronze tables have been updated before
+
+# COMMAND ----------
+
+(
+  joined_df
+  .writeStream.format("delta")
+  .outputMode("append")
+  .option("checkpointLocation", checkpoint_location_silver)
+  .option("mergeSchema", True)
+  .trigger(availableNow=True)
+  .table(table_silver)
+)
+
+# COMMAND ----------
+
+# Data validation checks
+df_silver = (
+  spark.read
+  .format('delta')
+  .table(table_silver)
+)
+
+print("Number of records in silver: ", df_silver.count())
+
+# COMMAND ----------
+
+df_silver.select("input_event").distinct().display()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC TODO: Clean up this notebook. Maybe join with batter-parameter-set table to add game metadata?

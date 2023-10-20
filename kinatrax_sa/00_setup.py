@@ -26,6 +26,13 @@ CHECKPOINT_BASE = f'dbfs:/user/{CURRENT_USER}/{CATALOG}'
 
 # COMMAND ----------
 
+# DDL configs
+spark.sql(f"""CREATE CATALOG IF NOT EXISTS {CATALOG}""")
+spark.sql(f"""CREATE DATABASE IF NOT EXISTS {CATALOG}.{DATABASE_B}""")
+# spark.sql(f"""SHOW DATABASES IN {CATALOG}""").display()
+
+# COMMAND ----------
+
 def extract_metadata(file_path, entity='game'):
   """
   Extracts metadata from the given file_path based on the field required
@@ -58,7 +65,7 @@ udf_extract_metadata = udf(extract_metadata, StringType())
 
 # COMMAND ----------
 
-extract_metadata('dbfs:/Volumes/hussain_v/kinatrax_demo_landing/game1/Batting/2023_04_26_19_10_42_Washington_Nationals_17_Alex_Call_Home/batter_parameter_set.xml', 'input_event')
+#extract_metadata('dbfs:/Volumes/hussain_v/kinatrax_demo_landing/game1/Batting/2023_04_26_19_10_42_Washington_Nationals_17_Alex_Call_Home/batter_parameter_set.xml', 'input_event')
 
 # COMMAND ----------
 

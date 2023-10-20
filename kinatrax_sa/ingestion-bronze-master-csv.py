@@ -8,7 +8,7 @@
 # dbutils.widgets.text(name='table', defaultValue='motion_sequence', label='Table')
 
 # Pipeline and task variables
-TABLE = 'batter_parameter_set' #dbutils.widgets.get('table')
+TABLE = 'motion_sequence' #dbutils.widgets.get('table')
 EVENT_TYPE = 'batting' #dbutils.widgets.get('event_type')
 print(f"Table: {TABLE}")
 print(f"Event Type: {EVENT_TYPE}")
@@ -21,8 +21,7 @@ schema_location_bronze = f'{SCHEMA_BASE}/bronze/batting_{TABLE}_schema'
 checkpoint_location_bronze = f'{CHECKPOINT_BASE}/bronze/batting_{TABLE}_checkpoint'
 # /Volumes/kinatrax/landing/all/game1/batting/2023_04_26_19_10_28_Washington_Nationals_17_Alex_Call_Home/motion_sequence_batting.csv
 base_path_input = f'dbfs:/Volumes/{CATALOG}/landing/all/*/{EVENT_TYPE}'
-file_path_input = f'*/{TABLE}.xml'
-xml_schema_inference_file_path = f"{base_path_input}/{file_path_input}".replace("*/batting", "game1/batting")
+file_path_input = f'*/{TABLE}.csv'
 
 # Configuration variables
 
@@ -30,7 +29,6 @@ print(f"Bronze Table: {table_bronze}")
 print(f"Bronze Schema Location: {schema_location_bronze}")
 print(f"Bronze Checkpoint Location: {checkpoint_location_bronze}")
 print(f"Landing Path: {base_path_input}/{file_path_input}")
-print(f"XML Schema Inference File Path: {xml_schema_inference_file_path}")
 
 # COMMAND ----------
 
@@ -41,40 +39,19 @@ spark.sql(f"""SHOW DATABASES IN {CATALOG}""").display()
 
 # COMMAND ----------
 
-# Extract the schema of the xml file
-df_schema = (
-  spark.read.format("binaryFile")
-  .load(xml_schema_inference_file_path)
-  .select(toStrUDF(f.expr("content")).alias("text"))
-)
-
-payloadSchema = (
-  spark.read
-  .format("com.databricks.spark.xml")
-  .option("rootTag", "PlayerParameterSet")
-  .option("rowTag", "PlayerParameterSet")
-  .load(xml_schema_inference_file_path)
-).schema
-
-payloadSchema
-
-# COMMAND ----------
-
 df = (
     spark.readStream.format("cloudFiles")
-    .option("cloudFiles.format", "binaryFile")
+    .option("cloudFiles.format", "csv")
     .option("cloudFiles.schemaLocation", schema_location_bronze)
-    .option("cloudFiles.schemaEvolutionMode", "none")
+    .option("cloudFiles.schemaEvolutionMode", "rescue")
     .option("cloudFiles.inferColumnTypes", True)
     .option("inferSchema", True)
     .option("mergeSchema", True)
+    .option("header", True)
+    .option("delimiter", ' ')
     .load(f'{base_path_input}/{file_path_input}')
-    .withColumn('text', toStrUDF(f.expr("content")))
-    .withColumn('data', from_xml(f.expr("text"), payloadSchema))
-    # .withColumn("input_file", f.input_file_name()) This doesn't work with the above configs
-    .withColumnRenamed('path', 'input_file')
+    .withColumn("input_file", f.input_file_name())
     .withColumn("input_event", udf_extract_metadata("input_file", f.lit("input_event")))
-    .select("data", "input_file", "input_event")
 )
 
 # COMMAND ----------
@@ -128,10 +105,8 @@ df_bronze.display()
 clear_all_data = False
 
 if clear_all_data:
-  #spark.sql(f"""DROP DATABASE IF EXISTS {CATALOG}.{DATABASE_B} CASCADE""")
-  #print("Deleted bronze database!")
-  spark.sql(f"""DROP TABLE IF EXISTS {CATALOG}.{DATABASE_B}.{EVENT_TYPE}_{TABLE}""")
-  print("Deleted bronze table!")
+  spark.sql(f"""DROP DATABASE IF EXISTS {CATALOG}.{DATABASE_B} CASCADE""")
+  print("Deleted bronze database!")
   dbutils.fs.rm(checkpoint_location_bronze, True)
   dbutils.fs.rm(schema_location_bronze, True)
   print("Checkpoint and schema cleared!")
