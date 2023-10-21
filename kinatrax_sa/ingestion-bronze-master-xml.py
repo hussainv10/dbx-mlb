@@ -65,20 +65,3 @@ df = (
   .trigger(availableNow=True)
   .table(table_bronze)
 )
-
-# COMMAND ----------
-
-clear_all_data = False
-
-if clear_all_data:
-  #spark.sql(f"""DROP DATABASE IF EXISTS {CATALOG}.{DATABASE_B} CASCADE""")
-  #print("Deleted bronze database!")
-  spark.sql(f"""DROP TABLE IF EXISTS {CATALOG}.{DATABASE_B}.{EVENT_TYPE}_{TABLE}""")
-  print("Deleted bronze table!")
-  dbutils.fs.rm(checkpoint_location_bronze, True)
-  dbutils.fs.rm(schema_location_bronze, True)
-  print("Checkpoint and schema cleared!")
-
-# COMMAND ----------
-
-

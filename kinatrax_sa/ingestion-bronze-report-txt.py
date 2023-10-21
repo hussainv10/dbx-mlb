@@ -5,21 +5,19 @@
 
 # Imports have already been set in the 00_setup notebook
 # Widgets and task values
-# dbutils.widgets.text(name='table', defaultValue='motion_sequence', label='Table')
+dbutils.widgets.text(name='TABLE', defaultValue='', label='Table')
+dbutils.widgets.text(name='EVENT_TYPE', defaultValue='', label='Event Type')
 
 # Pipeline and task variables
-TABLE = 'report' #dbutils.widgets.get('table')
-EVENT_TYPE = 'batting' #dbutils.widgets.get('event_type')
+TABLE = dbutils.widgets.get('TABLE')
+EVENT_TYPE = dbutils.widgets.get('EVENT_TYPE')
 print(f"Table: {TABLE}")
 print(f"Event Type: {EVENT_TYPE}")
 
 # Path variables
 table_bronze = f'{CATALOG}.{DATABASE_B}.{EVENT_TYPE}_{TABLE}'
-# SCHEMA_BASE = f'dbfs:/user/{CURRENT_USER}/{CATALOG}'
-# CHECKPOINT_BASE = f'dbfs:/user/{CURRENT_USER}/{CATALOG}'
-schema_location_bronze = f'{SCHEMA_BASE}/bronze/batting_{TABLE}_schema'
-checkpoint_location_bronze = f'{CHECKPOINT_BASE}/bronze/batting_{TABLE}_checkpoint'
-# /Volumes/kinatrax/landing/all/game1/batting/2023_04_26_19_10_28_Washington_Nationals_17_Alex_Call_Home/motion_sequence_batting.csv
+schema_location_bronze = f'{SCHEMA_BASE}/{DATABASE_B}/{EVENT_TYPE}_{TABLE}_schema'
+checkpoint_location_bronze = f'{CHECKPOINT_BASE}/{DATABASE_B}/{EVENT_TYPE}_{TABLE}_checkpoint'
 base_path_input = f'dbfs:/Volumes/{CATALOG}/landing/all/*/{EVENT_TYPE}'
 file_path_input = f'*/*{TABLE}.txt'
 
@@ -32,13 +30,7 @@ print(f"Landing Path: {base_path_input}/{file_path_input}")
 
 # COMMAND ----------
 
-# DDL configs
-spark.sql(f"""CREATE CATALOG IF NOT EXISTS {CATALOG}""")
-spark.sql(f"""CREATE DATABASE IF NOT EXISTS {CATALOG}.{DATABASE_B}""")
-spark.sql(f"""SHOW DATABASES IN {CATALOG}""").display()
-
-# COMMAND ----------
-
+# Ingest the dataset from the landing zone as an Autoloader stream
 df = (
     spark.readStream.format("cloudFiles")
     .option("cloudFiles.format", "csv")
@@ -60,10 +52,7 @@ df = (
 
 # COMMAND ----------
 
-df.display()
-
-# COMMAND ----------
-
+# Write the data to a bronze Delta table
 (
   df
   .writeStream.format("delta")
@@ -73,52 +62,3 @@ df.display()
   .trigger(availableNow=True)
   .table(table_bronze)
 )
-
-# COMMAND ----------
-
-# DBTITLE 1,Testing Continuous Trigger
-# MAGIC %md
-# MAGIC
-# MAGIC (
-# MAGIC   df
-# MAGIC   .writeStream.format("delta")
-# MAGIC   .outputMode("append")
-# MAGIC   .option("checkpointLocation", checkpoint_location_bronze)
-# MAGIC   .option("mergeSchema", True)
-# MAGIC   .trigger(processingTime="30 seconds")
-# MAGIC   .table(table_bronze)
-# MAGIC )
-
-# COMMAND ----------
-
-# Data validation checks
-df_bronze = (
-  spark.read
-  .format('delta')
-  .table(table_bronze)
-)
-
-print("Number of records in bronze: ", df_bronze.count())
-
-# COMMAND ----------
-
-df_bronze.select("input_event").distinct().display()
-
-# COMMAND ----------
-
-df_bronze.display()
-
-# COMMAND ----------
-
-clear_all_data = True
-
-if clear_all_data:
-  #spark.sql(f"""DROP DATABASE IF EXISTS {CATALOG}.{DATABASE_B} CASCADE""")
-  #print("Deleted bronze database!")
-  dbutils.fs.rm(checkpoint_location_bronze, True)
-  dbutils.fs.rm(schema_location_bronze, True)
-  print("Checkpoint and schema cleared!")
-
-# COMMAND ----------
-
-
