@@ -51,13 +51,43 @@ df = (
 
 # COMMAND ----------
 
-# Write the data to a bronze Delta table
+# Extract the schema for the dataframe to be used in the zipWithIndex
+schema_bronze = StructType([StructField("row_index", LongType(), True)] + df.schema.fields)
+
+# COMMAND ----------
+
+def add_row_index(df, batch_id):
+  """
+  Function to add row indices to motion_tracker_frame_result_parameters
+  to facilitate an easy stream-stream join with the motion_sequence table
+
+  # Write the transformed DataFrame to the database using foreachBatch
+  .withColumn("row_number", f.row_number().over(Window.partitionBy('input_event').orderBy("Timestamp")))
+  query = transformedDF.writeStream.foreachBatch(write_to_database).start()
+  """
+  # We don't have a column to order by, hence we first need to zipWithIndex and then Window
+  df_zipped = (
+    df.rdd.zipWithIndex().map(lambda row: (row[1],) + row[0]).toDF(schema_bronze)
+    .withColumn('row_number', f.row_number().over(Window.partitionBy('input_event').orderBy("row_index")))
+  )
+  
+  # Write the data to a bronze Delta table
+  (
+    df_zipped
+    .write.format("delta")
+    .mode("append")
+    .option("mergeSchema", True)
+    .saveAsTable(table_bronze)
+  )
+
+# COMMAND ----------
+
+# Write the transformed DataFrame to the database using foreachBatch
 (
   df
-  .writeStream.format("delta")
-  .outputMode("append")
+  .writeStream
+  .foreachBatch(add_row_index)
   .option("checkpointLocation", checkpoint_location_bronze)
-  .option("mergeSchema", True)
   .trigger(availableNow=True)
-  .table(table_bronze)
+  .start()
 )

@@ -29,6 +29,8 @@ CHECKPOINT_BASE = f'dbfs:/user/{CURRENT_USER}/{CATALOG}'
 # DDL configs
 spark.sql(f"""CREATE CATALOG IF NOT EXISTS {CATALOG}""")
 spark.sql(f"""CREATE DATABASE IF NOT EXISTS {CATALOG}.{DATABASE_B}""")
+spark.sql(f"""CREATE DATABASE IF NOT EXISTS {CATALOG}.{DATABASE_S}""")
+spark.sql(f"""CREATE DATABASE IF NOT EXISTS {CATALOG}.{DATABASE_G}""")
 # spark.sql(f"""SHOW DATABASES IN {CATALOG}""").display()
 
 # COMMAND ----------
@@ -81,6 +83,20 @@ def from_xml(col, schema, options={}):
 
 # COMMAND ----------
 
+# Define the rounding function for motion_sequence timestamps for key frame joining
+def round_func(n):
+    if type(n) == type(None):
+      return 0
+    if (int(n) % 10 == 9):
+        return int(n) + 1
+    else:
+        return int(n)
+
+# Register the UDF
+round_udf = udf(round_func, IntegerType())
+
+# COMMAND ----------
+
 validate_all_data = False
 
 if validate_all_data:
@@ -101,13 +117,13 @@ if validate_all_data:
 
 # COMMAND ----------
 
-clear_all_data = False
+clear_all_data =  False
 
 if clear_all_data:
   spark.sql(f"""DROP DATABASE IF EXISTS {CATALOG}.{DATABASE_B} CASCADE""")
   print("Deleted bronze database!")
-  spark.sql(f"""DROP TABLE IF EXISTS {CATALOG}.{DATABASE_B}.{EVENT_TYPE}_{TABLE}""")
-  print("Deleted bronze table!")
+  #spark.sql(f"""DROP TABLE IF EXISTS {CATALOG}.{DATABASE_B}.{EVENT_TYPE}_{TABLE}""")
+  #print("Deleted bronze table!")
   dbutils.fs.rm(CHECKPOINT_BASE, True)
   dbutils.fs.rm(SCHEMA_BASE, True)
   print("Checkpoint and schema cleared!")
