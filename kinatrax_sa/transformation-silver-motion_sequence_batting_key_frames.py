@@ -55,6 +55,7 @@ df_batter_param_set = (
   .where(f.col("_rescued_data").isNull())
   .withColumnRenamed("input_event", "input_event_bps")
   .drop(f.col("_rescued_data"))
+  .drop(f.col("input_file"))
 )
 
 # COMMAND ----------
@@ -127,7 +128,7 @@ enriched_df = (
 
 # COMMAND ----------
 
-# Write out the stream-stream-batch join to a silve table
+# Write out the stream-stream-batch join to a silver table
 (
   enriched_df
   .writeStream.format("delta")

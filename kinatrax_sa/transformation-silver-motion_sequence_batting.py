@@ -35,6 +35,7 @@ df_motion = (
   # Filtering out only clean records
   .where(f.col("_rescued_data").isNull())
   .drop(f.col("_rescued_data"))
+  .drop(f.col("input_file"))
 )
 
 # COMMAND ----------
@@ -47,6 +48,7 @@ df_frames = (
   # Filtering out only clean records
   .where(f.col("_rescued_data").isNull())
   .drop(f.col("_rescued_data"))
+  .drop(f.col("input_file"))
 )
 
 # COMMAND ----------
@@ -60,6 +62,7 @@ df_batter_param_set = (
   # Filtering out only clean records
   .where(f.col("_rescued_data").isNull())
   .drop(f.col("_rescued_data"))
+  .drop(f.col("input_file"))
 )
 
 # COMMAND ----------
@@ -156,10 +159,6 @@ enriched_df = (
 
 # COMMAND ----------
 
-enriched_df.display()
-
-# COMMAND ----------
-
 tracked_joints = df_mapping['motion_sequence'].values.tolist()
 untracked_joints = ["JointSpine", "JointHead", "JointLeftUpperArm", "JointRightUpperArm", "JointLeftThigh", "JointRightThigh"]
 motion_measures = ["r11", "r12", "r13", "tx", "r21", "r22", "r23", "ty", "r31", "r32", "r33", "tz", "m41", "m42", "m43", "m44"]
@@ -179,12 +178,9 @@ for joint in unique_joints:
       joint_zip.append(f"{joint}_{measure}")
     cols_to_zip.append(joint_zip)
 
-print(cols_to_zip)
-
 # COMMAND ----------
 
 cols_to_drop = [elem for sublst in cols_to_zip for elem in sublst] + ['TrackingStates', 'ConfidenceValues', 'BoneFittingErrors'] + ['head_dup_TrackingStates', 'lefthand_dup_TrackingStates', 'righthand_dup_TrackingStates', 'leftfoot_dup_TrackingStates', 'rightfoot_dup_TrackingStates', 'head_dup_ConfidenceValues', 'lefthand_dup_ConfidenceValues', 'righthand_dup_ConfidenceValues', 'leftfoot_dup_ConfidenceValues', 'rightfoot_dup_ConfidenceValues', 'head_dup_BoneFittingErrors', 'lefthand_dup_BoneFittingErrors', 'righthand_dup_BoneFittingErrors', 'leftfoot_dup_BoneFittingErrors', 'rightfoot_dup_BoneFittingErrors']
-print(cols_to_drop)
 
 # COMMAND ----------
 
@@ -201,24 +197,26 @@ df_zipped = (
 
 # COMMAND ----------
 
-df_zipped.display()
+#df_zipped.display()
+
+# COMMAND ----------
+
+(
+  df_zipped
+  .writeStream.format("delta")
+  .outputMode("append")
+  .option("checkpointLocation", checkpoint_location_silver)
+  .option("mergeSchema", True)
+  .trigger(availableNow=True)
+  .table(table_silver)
+)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC TODO: 
-# MAGIC 1. Write out ('append') the results of the joined table to the target DataFrame
-# MAGIC 8. Test the pipeline run end-to-end against new data.
-# MAGIC 9. Clean up the lookup table and other config data that can be abstracted away from the pure processing of this pipeline. Also use the final tested output DataFrame as the schema used for the CTAS (since liquid clustering can only be defined during CTAS). Can new columns be merged into a LC table defined with fewer fields on CTAS?
+# MAGIC 1. Clean up the lookup table and other config data that can be abstracted away from the pure processing of this pipeline. Also use the final tested output DataFrame as the schema used for the CTAS (since liquid clustering can only be defined during CTAS). Can new columns be merged into a LC table defined with fewer fields on CTAS?
 # MAGIC
-# MAGIC
-# MAGIC Replicate the same process for the motion_sequence_bat and motion_sequence_ball and their respective frame_result_parameter tables:
-# MAGIC
-# MAGIC a. For bat - both files used in the join have the same number of rows
-# MAGIC
-# MAGIC b. For ball - both files have different number of rows - Filter out Tracked = True on frame data before joining to ball motion seq data
-# MAGIC
-# MAGIC c. Maybe these don't have to be replicated processes. They can just stream from the master batting table after selecting out the relevant bat and ball columns
 
 # COMMAND ----------
 
@@ -259,7 +257,3 @@ df_zipped.display()
 # MAGIC
 # MAGIC # Run the unit test
 # MAGIC test_static_df_frames2()
-
-# COMMAND ----------
-
-

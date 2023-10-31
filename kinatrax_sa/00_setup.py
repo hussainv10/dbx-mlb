@@ -94,36 +94,3 @@ def round_func(n):
 
 # Register the UDF
 round_udf = udf(round_func, IntegerType())
-
-# COMMAND ----------
-
-validate_all_data = False
-
-if validate_all_data:
-  dbutils.widgets.text('DATABASE', 'bronze')
-  DATABASE = dbutils.widgets.get('DATABASE')
-  dbutils.widgets.text('TABLE', 'motion_sequence_batting')
-  TABLE = dbutils.widgets.get('TABLE')
-  dbutils.widgets.text('EVENT_TYPE', 'batting')
-  EVENT_TYPE = dbutils.widgets.get('EVENT_TYPE')
-  df = spark.read.table(f"{CATALOG}.{DATABASE}.{EVENT_TYPE}_{TABLE}")
-  print("Number of records in table: ", df.count())
-  df.select("input_event").distinct().display()
-
-# COMMAND ----------
-
-if validate_all_data:
-  df.display()
-
-# COMMAND ----------
-
-clear_all_data =  False
-
-if clear_all_data:
-  spark.sql(f"""DROP DATABASE IF EXISTS {CATALOG}.{DATABASE_B} CASCADE""")
-  print("Deleted bronze database!")
-  #spark.sql(f"""DROP TABLE IF EXISTS {CATALOG}.{DATABASE_B}.{EVENT_TYPE}_{TABLE}""")
-  #print("Deleted bronze table!")
-  dbutils.fs.rm(CHECKPOINT_BASE, True)
-  dbutils.fs.rm(SCHEMA_BASE, True)
-  print("Checkpoint and schema cleared!")
