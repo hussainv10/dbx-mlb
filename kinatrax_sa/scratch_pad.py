@@ -71,4 +71,14 @@ df_xml.display()
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC OPTIMIZE kinatrax.silver.batting_motion_sequence_batting_key_frames
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC OPTIMIZE kinatrax.silver.batting_motion_sequence_batting_master
+
+# COMMAND ----------
+
 

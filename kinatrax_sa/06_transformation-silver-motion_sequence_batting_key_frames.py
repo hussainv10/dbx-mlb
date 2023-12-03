@@ -1,5 +1,9 @@
 # Databricks notebook source
-# MAGIC %run ./00_setup
+# MAGIC %run ./00_ddl
+
+# COMMAND ----------
+
+# MAGIC %run ./01_imports
 
 # COMMAND ----------
 
@@ -24,7 +28,6 @@ print(f"Bronze Table 2: {table_bronze_mtrp}")
 print(f"Bronze Table 3: {table_bronze_bps}")
 print(f"Silver Table: {table_silver}")
 print(f"Silver Checkpoint Location: {checkpoint_location_silver}")
-
 
 # COMMAND ----------
 
@@ -134,7 +137,6 @@ enriched_df = (
   .writeStream.format("delta")
   .outputMode("append")
   .option("checkpointLocation", checkpoint_location_silver)
-  .option("mergeSchema", True)
   .trigger(availableNow=True)
   .table(table_silver)
 )

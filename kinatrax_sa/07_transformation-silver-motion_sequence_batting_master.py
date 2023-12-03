@@ -1,12 +1,16 @@
 # Databricks notebook source
-# MAGIC %run ./00_setup
+# MAGIC %run ./00_ddl
+
+# COMMAND ----------
+
+# MAGIC %run ./01_imports
 
 # COMMAND ----------
 
 # Imports have already been set in the 00_setup notebook
 
 # Pipeline and task variables
-TABLE = 'motion_sequence_batting_p80'
+TABLE = 'motion_sequence_batting_master'
 EVENT_TYPE = 'batting'
 print(f"Table: {TABLE}")
 print(f"Event Type: {EVENT_TYPE}")
@@ -67,7 +71,7 @@ df_batter_param_set = (
 
 # COMMAND ----------
 
-# Define the schema for the mapping DataFrame
+# Define the schema for the mapping DataFrame to define relationships between joint names in the motion_sequence and motion_tracker_frame_result_parameters files
 schema_mapping = StructType([
     StructField("motion_tracker_frame_result_parameters", StringType(), True),
     StructField("motion_sequence", StringType(), True),
@@ -111,7 +115,7 @@ df_mapping = df_mapping.select([f.lower(f.col(c)).alias(c) for c in df_mapping.c
 
 # COMMAND ----------
 
-# Transforming the mtfrp dataframe
+# Transforming the mtfrp dataframe by extracting nested items
 df_frames_processed = (
   df_frames
   # Add filter for where _rescued_data column is Null
@@ -120,10 +124,11 @@ df_frames_processed = (
   .withColumnRenamed(df_frames.columns[3], 'BoneFittingErrors')
   .withColumn("TrackingStates", f.regexp_replace("TrackingStates", "[{}]", ""))
   .withColumn("TrackingStates", f.split(f.col('TrackingStates'), ";"))
+  .withColumn("TrackingStates", f.expr("transform(TrackingStates, x -> int(CASE WHEN x = 'T' THEN 1 ELSE 0 END))"))
   .withColumn("ConfidenceValues", f.regexp_replace("ConfidenceValues", "[{}]", ""))
-  .withColumn("ConfidenceValues", f.split(f.col('ConfidenceValues'), ";"))
+  .withColumn("ConfidenceValues", f.split(f.col('ConfidenceValues'), ";").cast('array<double>'))
   .withColumn("BoneFittingErrors", f.regexp_replace("BoneFittingErrors", "[{}]", ""))
-  .withColumn("BoneFittingErrors", f.split(f.col('BoneFittingErrors'), ";"))
+  .withColumn("BoneFittingErrors", f.split(f.col('BoneFittingErrors'), ";").cast('array<double>'))
   .select("*", *[f.col("TrackingStates").getItem(i).alias(f'{df_mapping["motion_sequence"][i]}_TrackingStates') for i in range(df_mapping.shape[0])])
   .select("*", *[f.col("ConfidenceValues").getItem(i).alias(f'{df_mapping["motion_sequence"][i]}_ConfidenceValues') for i in range(df_mapping.shape[0])])
   .select("*", *[f.col("BoneFittingErrors").getItem(i).alias(f'{df_mapping["motion_sequence"][i]}_BoneFittingErrors') for i in range(df_mapping.shape[0])])
@@ -159,8 +164,9 @@ enriched_df = (
 
 # COMMAND ----------
 
+# Create a list of fields to be zipped per joint
 tracked_joints = df_mapping['motion_sequence'].values.tolist()
-untracked_joints = ["JointSpine", "JointHead", "JointLeftUpperArm", "JointRightUpperArm", "JointLeftThigh", "JointRightThigh"]
+untracked_joints = ["JointSpine", "JointHead", "JointLeftUpperArm", "JointRightUpperArm", "JointLeftThigh", "JointRightThigh", "Knob", "Top", "Center"]
 motion_measures = ["r11", "r12", "r13", "tx", "r21", "r22", "r23", "ty", "r31", "r32", "r33", "tz", "m41", "m42", "m43", "m44"]
 frame_measures = ['TrackingStates', 'ConfidenceValues', 'BoneFittingErrors']
 
@@ -180,11 +186,12 @@ for joint in unique_joints:
 
 # COMMAND ----------
 
+# Duplicate columns that are not needed in the resultant master dataframe
 cols_to_drop = [elem for sublst in cols_to_zip for elem in sublst] + ['TrackingStates', 'ConfidenceValues', 'BoneFittingErrors'] + ['head_dup_TrackingStates', 'lefthand_dup_TrackingStates', 'righthand_dup_TrackingStates', 'leftfoot_dup_TrackingStates', 'rightfoot_dup_TrackingStates', 'head_dup_ConfidenceValues', 'lefthand_dup_ConfidenceValues', 'righthand_dup_ConfidenceValues', 'leftfoot_dup_ConfidenceValues', 'rightfoot_dup_ConfidenceValues', 'head_dup_BoneFittingErrors', 'lefthand_dup_BoneFittingErrors', 'righthand_dup_BoneFittingErrors', 'leftfoot_dup_BoneFittingErrors', 'rightfoot_dup_BoneFittingErrors']
 
 # COMMAND ----------
 
-# f.create_map(*list(chain(*[[f.lit(c), f.col(c)] for c in joint_zip])))
+# The code below zips together all transformation matrix elements with their corresponding confidence values and fitting errors, to assure usage quality of each record during analysis
 df_zipped = (
   enriched_df
   .select("*", *[f.create_map(*list(chain(*[[f.lit(c.split('_')[1]), f.col(c)] for c in joint_zip]))).alias(f"{joint_zip[0].split('_')[0]}_zip") for joint_zip in cols_to_zip])
@@ -206,54 +213,6 @@ df_zipped = (
   .writeStream.format("delta")
   .outputMode("append")
   .option("checkpointLocation", checkpoint_location_silver)
-  .option("mergeSchema", True)
   .trigger(availableNow=True)
   .table(table_silver)
 )
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC TODO: 
-# MAGIC 1. Clean up the lookup table and other config data that can be abstracted away from the pure processing of this pipeline. Also use the final tested output DataFrame as the schema used for the CTAS (since liquid clustering can only be defined during CTAS). Can new columns be merged into a LC table defined with fewer fields on CTAS?
-# MAGIC
-
-# COMMAND ----------
-
-# MAGIC %md ### Unit Test for zipWithIndex
-# MAGIC
-# MAGIC # Create a test PySpark DataFrame
-# MAGIC from pyspark.sql import Row
-# MAGIC test_data = [Row(row_index=10, input_event='event1', col1='a'), Row(row_index=20, input_event='event1', col1='b'), Row(row_index=30, input_event='event2', col1='c')]
-# MAGIC test_df = spark.createDataFrame(test_data)
-# MAGIC
-# MAGIC # Define expected schema for output DataFrame
-# MAGIC from pyspark.sql.types import StructType, StructField, IntegerType, StringType
-# MAGIC expected_schema = StructType([StructField('row_index', IntegerType(), True),
-# MAGIC                               StructField('input_event', StringType(), True),
-# MAGIC                               StructField('col1', StringType(), True),
-# MAGIC                               StructField('row_number', IntegerType(), True)])
-# MAGIC
-# MAGIC # Define expected output DataFrame
-# MAGIC expected_data = [(10, 'event1', 'a', 1), (20, 'event1', 'b', 2), (30, 'event2', 'c', 1)]
-# MAGIC expected_df = spark.createDataFrame(expected_data, expected_schema)
-# MAGIC
-# MAGIC # Define unit test function
-# MAGIC def test_static_df_frames2():
-# MAGIC   # Apply transformation to test data
-# MAGIC   result_df = (
-# MAGIC       test_df.rdd
-# MAGIC       .zipWithIndex()
-# MAGIC       .map(lambda row: row[0] + (row[1],))
-# MAGIC       .toDF(expected_schema)
-# MAGIC       .withColumn('row_number', f.row_number().over(Window.partitionBy('input_event').orderBy('row_index')))
-# MAGIC   )
-# MAGIC
-# MAGIC   # Assert that the test and expected DataFrames are equal
-# MAGIC   print(result_df.collect())
-# MAGIC   print(expected_df.collect())
-# MAGIC   assert result_df.collect() == expected_df.collect()
-# MAGIC   print("TEST PASSED!")
-# MAGIC
-# MAGIC # Run the unit test
-# MAGIC test_static_df_frames2()
