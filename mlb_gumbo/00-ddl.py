@@ -7,44 +7,65 @@ import pyspark.sql.functions as F
 
 # DBTITLE 1,Global Variables
 # Global variables
-CATALOG = 'main'
-SCHEMA = 'mlb_gumbo'
-VOLUME = "mlb_gumbo_data"
+CURRENT_USER = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply('user')
+CATALOG = 'mlb_gumbo'
+DATABASE_L = 'landing'
+DATABASE_B = 'bronze'
+DATABASE_S = 'silver'
+DATABASE_G = 'gold'
 
 # Data Location
-VOLUME_PREFIX = f"/Volumes/{CATALOG}/{SCHEMA}/{VOLUME}"
-BRONZE_PREFIX = 'bronze_mlb_gumbo'
-SILVER_PREFIX = 'silver_mlb_gumbo'
-GOLD_PREFIX = 'gold_mlb_gumbo'
-
-# Checkpoints
-CHECKPOINT_LOCATION = f'{VOLUME_PREFIX}/checkpoints'
-DATA_LOCATION = f'{VOLUME_PREFIX}/data'
+SCHEMA_BASE = f'dbfs:/user/{CURRENT_USER}/{CATALOG}'
+CHECKPOINT_BASE = f'dbfs:/user/{CURRENT_USER}/{CATALOG}'
 
 # COMMAND ----------
 
 # DBTITLE 1,Create Catalog
+spark.sql(f"""
+          CREATE CATALOG IF NOT EXISTS {CATALOG}
+          COMMENT 'Catalog for storing and processing all MLB GUMBO data';
+          """)
+
+spark.sql(f"""
+          ALTER CATALOG {CATALOG}
+          SET TAGS ('removeAfter' = '20251101');
+          """)
+
 spark.sql(f"""
           USE CATALOG {CATALOG};
           """)
 
 # COMMAND ----------
 
-# DBTITLE 1,Create Schema
 spark.sql(f"""
-          CREATE DATABASE IF NOT EXISTS {CATALOG}.{SCHEMA}
-          COMMENT 'Database for storing MLB Gumbo Data in Unity Catalog';
+          CREATE DATABASE IF NOT EXISTS {CATALOG}.{DATABASE_L}
+          COMMENT 'Landing database for storing raw MLB Gumbo data in a UC volume';
           """)
 
 spark.sql(f"""
-          USE DATABASE {SCHEMA};
+          CREATE DATABASE IF NOT EXISTS {CATALOG}.{DATABASE_B}
+          COMMENT 'Bronze database for copies of MLB Gumbo landing tables, augmented with metadata fields from folder paths. Uses VARIANT to store the JSON objects.';
+          """)
+
+spark.sql(f"""
+          CREATE DATABASE IF NOT EXISTS {CATALOG}.{DATABASE_S}
+          COMMENT 'Silver database for storing clean, normalized MLB GUMBO data for analysis, with quality constraints met';
+          """)
+
+spark.sql(f"""
+          CREATE DATABASE IF NOT EXISTS {CATALOG}.{DATABASE_G}
+          COMMENT 'Gold database for serving aggregated MLB GUMBo data, KPIs etc. to front-end applications';
+          """)
+
+spark.sql(f"""
+          USE DATABASE {DATABASE_B};
           """)
 
 # COMMAND ----------
 
 # DBTITLE 1,Create Bronze Table
 # MAGIC %sql
-# MAGIC CREATE TABLE IF NOT EXISTS bronze_mlb_gumbo_data (
+# MAGIC CREATE TABLE IF NOT EXISTS raw_data (
 # MAGIC   data VARIANT COMMENT "The raw GUMBO JSON object as a Variant",
 # MAGIC   file_path STRING COMMENT "Path to the source file",
 # MAGIC   file_name STRING COMMENT "Name of the source file",
@@ -55,12 +76,19 @@ spark.sql(f"""
 # MAGIC )
 # MAGIC USING DELTA
 # MAGIC CLUSTER BY (file_batch_time)
-# MAGIC COMMENT 'The bronze_mlb_gumbo_data table holds the raw GUMBO JSON object as a Variant as well as metadata about the files loaded.';
+# MAGIC COMMENT 'The mlb_gumbo.bronze.raw_data table holds the raw GUMBO JSON object as a Variant as well as metadata about the files loaded.';
 
 # COMMAND ----------
 
+spark.sql(f"""
+          USE DATABASE {DATABASE_S};
+          """)
+
+# COMMAND ----------
+
+# DBTITLE 1,Create Silver Tables
 # MAGIC %sql
-# MAGIC CREATE TABLE IF NOT EXISTS silver_mlb_gumbo_game_data (
+# MAGIC CREATE TABLE IF NOT EXISTS game_data (
 # MAGIC     -- Metadata
 # MAGIC     game_pk INT COMMENT 'Primary key for the game',
 # MAGIC     link STRING COMMENT 'URL link to the game details',
@@ -276,7 +304,7 @@ spark.sql(f"""
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE TABLE IF NOT EXISTS silver_mlb_gumbo_pitch_data (
+# MAGIC CREATE TABLE IF NOT EXISTS pitch_data (
 # MAGIC     -- Game Metadata
 # MAGIC     season INT COMMENT "Season year for the game",
 # MAGIC     game_datetime TIMESTAMP_NTZ COMMENT "Datetime of the game",

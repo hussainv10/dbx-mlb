@@ -3,16 +3,16 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./01-imports
+
+# COMMAND ----------
+
 import os
 import requests
 import json
 import time
 import pyspark.sql.functions as F
 from datetime import datetime
-
-# COMMAND ----------
-
-# dbutils.fs.rm(f"{VOLUME_PREFIX}/mlb_gumbo_checkpoints", True)
 
 # COMMAND ----------
 
@@ -43,6 +43,11 @@ print(f"Extracted {len(game_pks)} games.")
 
 # COMMAND ----------
 
+# Set Data Location
+DATA_LOCATION = f"/Volumes/{CATALOG}/{DATABASE_L}/mlb_gumbo_data"
+
+# COMMAND ----------
+
 # Get the current date and time
 current_run = datetime.now()
 folder_path = f"{DATA_LOCATION}/year={current_run.year}/month={current_run.month}/day={current_run.day}/hour={current_run.hour}/minute={current_run.minute}"
@@ -66,7 +71,7 @@ for game_pk in game_pks:
 # COMMAND ----------
 
 # Define Bronze Table
-BRONZE_TABLE = f"{CATALOG}.{SCHEMA}.{BRONZE_PREFIX}_data"
+BRONZE_TABLE = f"{CATALOG}.{DATABASE_B}.raw_data"
 
 # Ingest
 query = (spark.readStream
@@ -81,7 +86,7 @@ query = (spark.readStream
   .withColumn("file_batch_time", F.lit(current_run))
   .withColumn("last_update_time", F.current_timestamp())
   .writeStream
-  .option("checkpointLocation", f"{CHECKPOINT_LOCATION}")
+  .option("checkpointLocation", f"{CHECKPOINT_BASE}")
   .trigger(availableNow=True)
   .toTable(BRONZE_TABLE)
 )
@@ -90,7 +95,7 @@ query.awaitTermination()
 
 # COMMAND ----------
 
-df = spark.sql("""
+df = spark.sql(f"""
 SELECT 
     -- Metadata
     data:gamePk::int as game_pk,
@@ -300,15 +305,10 @@ SELECT
     file_batch_time,
     last_update_time
 FROM
-    main.mlb_gumbo.bronze_mlb_gumbo_data
+    {CATALOG}.{DATABASE_B}.raw_data
 """)
 
 display(df)
-
-# COMMAND ----------
-
-# spark.sql("drop table if exists main.abooth_db.silver_gumbo_game_data")
-# df.write.format("delta").saveAsTable("main.abooth_db.silver_gumbo_game_data")
 
 # COMMAND ----------
 
@@ -316,8 +316,8 @@ display(df)
 df.createOrReplaceTempView("temp_silver_mlb_gumbo_game_data")
 
 # Use the MERGE INTO SQL command to update or insert records based on the game_pk column
-spark.sql("""
-MERGE INTO main.mlb_gumbo.silver_mlb_gumbo_game_data AS target
+spark.sql(f"""
+MERGE INTO {CATALOG}.{DATABASE_S}.game_data AS target
 USING temp_silver_mlb_gumbo_game_data AS source
 ON target.season = source.season and
   target.official_date = source.official_date and
@@ -331,7 +331,7 @@ WHEN NOT MATCHED THEN
 # COMMAND ----------
 
 # Pitch Data
-df = spark.sql("""
+df = spark.sql(f"""
 SELECT
   -- Game Metadata
   data:gameData.game.season::int as season,
@@ -473,7 +473,7 @@ SELECT
   file_batch_time,
   last_update_time
 FROM
-  main.mlb_gumbo.bronze_mlb_gumbo_data,
+  {CATALOG}.{DATABASE_B}.raw_data,
   LATERAL variant_explode(data:liveData.plays.allPlays) AS allPlays,
   LATERAL variant_explode(allPlays.value:playEvents) AS playEvents
 ORDER BY
@@ -488,17 +488,12 @@ display(df)
 
 # COMMAND ----------
 
-# spark.sql("drop table if exists main.abooth_db.silver_gumbo_pitch_data")
-# df.write.format("delta").saveAsTable("main.abooth_db.silver_gumbo_pitch_data")
-
-# COMMAND ----------
-
 # Create a temporary view from the DataFrame
 df.createOrReplaceTempView("temp_silver_mlb_gumbo_pitch_data")
 
 # Use the MERGE INTO SQL command to update or insert records based on the game_pk, at_bat_index, pitch_index column
-spark.sql("""
-MERGE INTO main.mlb_gumbo.silver_mlb_gumbo_pitch_data AS target
+spark.sql(f"""
+MERGE INTO {CATALOG}.{DATABASE_S}.pitch_data AS target
 USING temp_silver_mlb_gumbo_pitch_data AS source
 ON target.season = source.season and
   target.official_date = source.official_date and
