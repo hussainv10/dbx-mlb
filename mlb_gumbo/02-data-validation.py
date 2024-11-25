@@ -16,7 +16,6 @@ RESET_ALL_DATA = bool(int(dbutils.widgets.get("reset_all_data")))
 print(f"Reset All Data: {RESET_ALL_DATA}")
 
 # Global variables
-CURRENT_USER = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply('user')
 CATALOG = dbutils.widgets.get("catalog")
 DATABASE_L = 'landing'
 DATABASE_B = 'bronze'
@@ -24,8 +23,7 @@ DATABASE_S = 'silver'
 DATABASE_G = 'gold'
 
 # Data Location
-SCHEMA_BASE = f'dbfs:/user/{CURRENT_USER}/{CATALOG}'
-CHECKPOINT_BASE = f'dbfs:/user/{CURRENT_USER}/{CATALOG}'
+CHECKPOINT_BASE = f"/Volumes/{CATALOG}/{DATABASE_L}/mlb_gumbo_checkpoints"
 
 # COMMAND ----------
 
@@ -75,8 +73,7 @@ if RESET_ALL_DATA:
 
   # Delete Data Checkpoints
   dbutils.fs.rm(CHECKPOINT_BASE, True)
-  dbutils.fs.rm(SCHEMA_BASE, True)
-  print("Checkpoint and schema cleared!")
+  print("Checkpoints cleared!")
 
 # COMMAND ----------
 

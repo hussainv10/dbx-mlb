@@ -16,6 +16,14 @@ from datetime import datetime
 
 # COMMAND ----------
 
+# Variables
+CHECKPOINT_LOCATION_BRONZE = f'{CHECKPOINT_BASE}/raw_data_checkpoints'
+
+# Set Data Location
+DATA_LOCATION = f"/Volumes/{CATALOG}/{DATABASE_L}/mlb_gumbo_data"
+
+# COMMAND ----------
+
 # Get the current date
 # today = datetime.now().strftime("%Y-%m-%d") # Use current date to get games today
 
@@ -40,11 +48,6 @@ for date in data.get("dates", []):
 
 # Output the list of game PKs
 print(f"Extracted {len(game_pks)} games.")
-
-# COMMAND ----------
-
-# Set Data Location
-DATA_LOCATION = f"/Volumes/{CATALOG}/{DATABASE_L}/mlb_gumbo_data"
 
 # COMMAND ----------
 
@@ -86,12 +89,16 @@ query = (spark.readStream
   .withColumn("file_batch_time", F.lit(current_run))
   .withColumn("last_update_time", F.current_timestamp())
   .writeStream
-  .option("checkpointLocation", f"{CHECKPOINT_BASE}")
+  .option("checkpointLocation", f"{CHECKPOINT_LOCATION_BRONZE}")
   .trigger(availableNow=True)
   .toTable(BRONZE_TABLE)
 )
 
 query.awaitTermination()
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
