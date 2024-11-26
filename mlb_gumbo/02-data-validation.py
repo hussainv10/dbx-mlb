@@ -68,7 +68,7 @@ if validate_all_data:
 if RESET_ALL_DATA:
   spark.sql(f"""DROP DATABASE IF EXISTS {CATALOG}.{DATABASE_S} CASCADE""")
   print("Deleted SILVER database!")
-  spark.sql(f"""DROP TABLE IF EXISTS {CATALOG}.{DATABASE_B}""")
+  spark.sql(f"""DROP DATABASE IF EXISTS {CATALOG}.{DATABASE_B} CASCADE""")
   print("Deleted BRONZE database!")
 
   # Delete Data Checkpoints

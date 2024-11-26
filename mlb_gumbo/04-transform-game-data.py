@@ -22,16 +22,12 @@ table_bronze_raw = f'{CATALOG}.{DATABASE_B}.raw_data'
 
 # COMMAND ----------
 
-# Stream in the raw_data table
+# Stream in the raw_data table using PySpark API
 df_raw = (
   spark.readStream
   .format('delta')
   .table(table_bronze_raw)
-)
-
-# COMMAND ----------
-
-df = df_raw.selectExpr(
+  .selectExpr(
     "data:gamePk::int as game_pk",
     "data:link::string as link",
     "data:gameData.game.type::string as game_type",
@@ -220,6 +216,7 @@ df = df_raw.selectExpr(
     "file_modification_time",
     "file_batch_time",
     "last_update_time"
+  )
 )
 
 # COMMAND ----------
@@ -247,7 +244,7 @@ def upsert_to_silver(batch_df, batch_id):
 
 # Write Stream with foreachBatch
 (
-    df.writeStream.foreachBatch(upsert_to_silver)  # Process each batch with the upsert function
+    df_raw.writeStream.foreachBatch(upsert_to_silver)  # Process each batch with the upsert function
     .outputMode("update") 
     .option("checkpointLocation", checkpoint_location_silver)
     .trigger(availableNow=True)  # Process all available data at once
