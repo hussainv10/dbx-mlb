@@ -75,6 +75,9 @@ spark.sql(f"""
 # MAGIC USING DELTA
 # MAGIC CLUSTER BY (file_batch_time)
 # MAGIC COMMENT 'The mlb_gumbo.bronze.raw_data table holds the raw GUMBO JSON object as a Variant as well as metadata about the files loaded.';
+# MAGIC
+# MAGIC ALTER TABLE raw_data
+# MAGIC    SET TBLPROPERTIES (delta.enableChangeDataFeed = true);
 
 # COMMAND ----------
 
@@ -297,7 +300,10 @@ spark.sql(f"""
 # MAGIC )
 # MAGIC USING delta
 # MAGIC CLUSTER BY (season, official_date)
-# MAGIC COMMENT 'This table contains comprehensive data about MLB games, sourced from the bronze_gumbo_data table and transformed for analytics in the silver layer. It provides detailed metadata, datetime, status, team (home and away), venue, weather, game officials, and statistical flags. Additionally, it includes information about probable pitchers, mound visits, and metadata about the file source of the data. This table is designed to support in-depth analysis of individual games and trends over time.'
+# MAGIC COMMENT 'This table contains comprehensive data about MLB games, sourced from the bronze_gumbo_data table and transformed for analytics in the silver layer. It provides detailed metadata, datetime, status, team (home and away), venue, weather, game officials, and statistical flags. Additionally, it includes information about probable pitchers, mound visits, and metadata about the file source of the data. This table is designed to support in-depth analysis of individual games and trends over time.';
+# MAGIC
+# MAGIC ALTER TABLE game_data
+# MAGIC    SET TBLPROPERTIES (delta.enableChangeDataFeed = true);
 
 # COMMAND ----------
 
@@ -440,6 +446,8 @@ spark.sql(f"""
 # MAGIC CLUSTER BY (season, official_date, game_pk)
 # MAGIC COMMENT "Silver-layer table containing granular pitch-level MLB game data extracted and transformed from the bronze layer";
 # MAGIC
+# MAGIC ALTER TABLE pitch_data
+# MAGIC    SET TBLPROPERTIES (delta.enableChangeDataFeed = true);
 
 # COMMAND ----------
 

@@ -28,8 +28,8 @@ DATA_LOCATION = f"/Volumes/{CATALOG}/{DATABASE_L}/mlb_gumbo_data"
 # today = datetime.now().strftime("%Y-%m-%d") # Use current date to get games today
 
 # Define the start and end dates for the schedule
-start_date = "2024-10-01"
-end_date = "2024-10-30"
+start_date = "2024-09-01"
+end_date = "2024-09-30"
 
 # Construct the URL to fetch the schedule data from the MLB API
 URL = f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate={start_date}&endDate={end_date}"

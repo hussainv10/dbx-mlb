@@ -13,6 +13,7 @@ import json
 import time
 import pyspark.sql.functions as F
 from datetime import datetime
+from delta.tables import DeltaTable
 
 # COMMAND ----------
 
@@ -223,22 +224,22 @@ df_raw = (
 
 # Define the upsert function
 def upsert_to_silver(batch_df, batch_id):
-    silver_table_name = "mlb_gumbo.silver.game_data"  # Unity Catalog table name
+    # Define the target silver table
+    silver_table = DeltaTable.forName(spark, "mlb_gumbo.silver.game_data")
 
-    # Register the incoming batch as a temporary view
-    batch_df.createOrReplaceTempView("temp_silver_mlb_gumbo_game_data")
-    
-    # Perform the MERGE operation with SQL
-    spark.sql(f"""
-        MERGE INTO {silver_table_name} AS silver
-        USING temp_silver_mlb_gumbo_game_data AS updates
-        ON silver.season = updates.season and
-        silver.official_date = updates.official_date and
-        silver.game_pk = updates.game_pk  
-        WHEN MATCHED THEN UPDATE SET *
-        WHEN NOT MATCHED THEN INSERT *
-    """)
-
+    # Perform merge operation to upsert data
+    (
+        silver_table.alias("silver")
+        .merge(
+            batch_df.alias("updates"),
+            "silver.season = updates.season AND silver.official_date = updates.official_date AND silver.game_pk = updates.game_pk"
+            )
+        # Update all columns if a match is found
+        .whenMatchedUpdateAll()
+        # Insert all columns if no match is found
+        .whenNotMatchedInsertAll()
+        .execute()  # Execute the merge operation
+    )
 
 # COMMAND ----------
 
