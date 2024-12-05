@@ -77,4 +77,61 @@ if RESET_ALL_DATA:
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC # Testing Delta Sharing as the Recipient
+# MAGIC - Gumbo data shared from GCP workspace
+# MAGIC - Two versions of the table - with and without CDF
+
+# COMMAND ----------
+
+table_no_cdc = "mlb_gumbo_gcp.silver.game_data_no_cdc"
+
+df1 = spark.read.table(table_no_cdc)
+display(df1)
+
+# COMMAND ----------
+
+# Define the table name
+table_cdc = "mlb_gumbo_gcp.silver.game_data"
+
+# Configure the streaming read
+change_stream = (
+  spark.readStream
+  .format("deltaSharing")
+  .option("readChangeFeed", "true")
+  .table(table_cdc)
+)
+
+display(change_stream)
+
+# COMMAND ----------
+
+386 + 34
+
+# COMMAND ----------
+
+df_cdc_batch = (spark.read
+    .format("deltaSharing")
+    .option("readChangeFeed", "true")  # Enable reading the change data feed
+    .option("startingVersion", 4)  # Optional starting timestamp
+    .option("endingVersion", 5)  # Optional ending timestamp
+    .table("mlb_gumbo_gcp.silver.game_data")
+)
+
+display(df_cdc_batch)
+
+# COMMAND ----------
+
+df_cdc_batch = (spark.read
+    .format("deltaSharing")
+    .option("readChangeFeed", "true")  # Enable reading the change data feed
+    .option("startingVersion", 5)  # Optional starting timestamp
+    .option("endingVersion", 10)  # Optional ending timestamp
+    .table("mlb_gumbo_gcp.silver.game_data")
+)
+
+display(df_cdc_batch)
+
+# COMMAND ----------
+
 
