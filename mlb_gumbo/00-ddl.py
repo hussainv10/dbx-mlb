@@ -443,4 +443,22 @@ spark.sql(f"""
 
 # COMMAND ----------
 
-
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS strike_probability (
+# MAGIC     season INTEGER COMMENT 'Year of the baseball season',
+# MAGIC     official_date DATE COMMENT 'Official game date',
+# MAGIC     game_pk INTEGER COMMENT 'Unique identifier for the game',
+# MAGIC     at_bat_index INTEGER COMMENT 'Index of the at-bat within the game',
+# MAGIC     pitch_index INTEGER COMMENT 'Index of the pitch within the at-bat',
+# MAGIC     pitch_start_speed DOUBLE COMMENT 'Starting speed of the pitch (mph)',
+# MAGIC     pitch_break_vertical_induced DOUBLE COMMENT 'Induced vertical break of the pitch (inches)',
+# MAGIC     pitch_break_horizontal DOUBLE COMMENT 'Horizontal break of the pitch (inches)',
+# MAGIC     pitch_spin_rate INTEGER COMMENT 'Spin rate of the pitch (rpm)',
+# MAGIC     position_x DOUBLE COMMENT 'Horizontal position of the pitch at the plate (feet)',
+# MAGIC     position_z DOUBLE COMMENT 'Vertical position of the pitch at the plate (feet)',
+# MAGIC     strike_probability FLOAT COMMENT 'Predicted probability of the pitch being a strike',
+# MAGIC     last_update_time TIMESTAMP COMMENT "Timestamp of the last update"
+# MAGIC )
+# MAGIC USING delta
+# MAGIC CLUSTER BY (season, official_date, game_pk)
+# MAGIC COMMENT 'Table storing pitch data features and model-generated strike probabilities';

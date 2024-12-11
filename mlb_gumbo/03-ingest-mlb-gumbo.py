@@ -28,11 +28,11 @@ DATA_LOCATION = f"/Volumes/{CATALOG}/{DATABASE_L}/mlb_gumbo_data"
 # today = datetime.now().strftime("%Y-%m-%d") # Use current date to get games today
 
 # Define the start and end dates for the schedule
-start_date = "2024-10-01"
-end_date = "2024-10-30"
+start_date = "2023-6-01"
+end_date = "2023-7-31"
 
 # Construct the URL to fetch the schedule data from the MLB API
-URL = f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate={start_date}&endDate={end_date}"
+URL = f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&gameType=R&startDate={start_date}&endDate={end_date}"
 data = requests.get(URL).json()  # Fetch the data and parse it as JSON
 
 # Initialize an empty list to store game PKs
@@ -68,8 +68,8 @@ for game_pk in game_pks:
     json.dump(data, f)
 
   # Log and sleep
-  print(game_pk)
-  time.sleep(1)
+  # print(game_pk)
+  # time.sleep(1)
 
 # COMMAND ----------
 
